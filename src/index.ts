@@ -4,6 +4,8 @@ import cors from "@elysiajs/cors";
 import { user } from "./auth";
 import swagger from "@elysiajs/swagger";
 
+const PORT = process.env.PORT || 3000;
+
 const app = new Elysia()
   .use(cors())
   .use(user)
@@ -17,7 +19,7 @@ const app = new Elysia()
   .get("/class/todo-manager", () => {
     return Bun.file("public/ToDoManager.ts")
   })
-  .listen(3000);
+  .listen(PORT);
 
 console.log(
   `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
