@@ -7,7 +7,7 @@ const User = t.Object({
   username: t.String(),
   password: t.String(),
   email: t.String(),
-  firstname: t.String(),
+  firstname: t.Optional(t.String()),
   lastname: t.Optional(t.String()),
   age: t.Optional(t.Number()),
   phone: t.Optional(t.String()),
