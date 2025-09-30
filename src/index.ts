@@ -19,6 +19,9 @@ const app = new Elysia()
   .get("/class/todo-manager", () => {
     return Bun.file("public/ToDoManager.ts")
   })
+  .get("/class/auth-client", () => {
+    return Bun.file("public/AuthClient.ts")
+  })
   .listen(PORT);
 
 console.log(
