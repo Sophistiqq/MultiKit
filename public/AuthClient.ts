@@ -15,40 +15,7 @@
  * 
  * // Login
  * const result = await auth.login('username', 'password');
-
-
-Example usage:
-
-import { AuthClient, User, RegisterData } from './AuthClient';
-
-const auth = new AuthClient('http://localhost:3000', {
-  authPrefix: '/auth', // optional
-  headers: { 'X-Custom-Header': 'value' } // optional
-});
-
-// Subscribe with typed callback
-auth.subscribe((user: User | null) => {
-  if (user) {
-    console.log(`Welcome ${user.username}!`);
-  }
-});
-
-// Login with type checking
-const loginResult = await auth.login('username', 'password');
-if (loginResult.success && loginResult.data) {
-  console.log(loginResult.data.email); // Type-safe access
-}
-
-// Register with typed data
-const registerData: RegisterData = {
-  username: 'newuser',
-  password: 'securepass',
-  email: 'user@example.com',
-  firstname: 'John'
-};
-await auth.register(registerData);
-
-*/
+ */
 
 // Types
 export interface User {
@@ -98,6 +65,8 @@ export interface AuthClientOptions {
   authPrefix?: string;
   headers?: Record<string, string>;
   fetchConfig?: RequestInit;
+  persistUser?: boolean; // Enable localStorage persistence
+  storageKey?: string; // Custom storage key
 }
 
 type SubscriberCallback = (user: User | null) => void;
@@ -109,10 +78,14 @@ export class AuthClient {
   private subscribers: Set<SubscriberCallback> = new Set();
   private initialized: boolean = false;
   private fetchConfig: RequestInit;
+  private persistUser: boolean;
+  private storageKey: string;
 
   constructor(baseUrl: string, options: AuthClientOptions = {}) {
     this.baseUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash
     this.authPrefix = options.authPrefix || '/auth';
+    this.persistUser = options.persistUser ?? false;
+    this.storageKey = options.storageKey || 'auth_user';
 
     // Default fetch configuration
     this.fetchConfig = {
@@ -123,6 +96,11 @@ export class AuthClient {
       },
       ...options.fetchConfig
     };
+
+    // Load user from localStorage if persistence is enabled
+    if (this.persistUser && typeof window !== 'undefined') {
+      this.loadUserFromStorage();
+    }
   }
 
   /**
@@ -152,6 +130,30 @@ export class AuthClient {
   private setUser(user: User | null): void {
     this.user = user;
     this.notify();
+
+    // Persist to localStorage if enabled
+    if (this.persistUser && typeof window !== 'undefined') {
+      if (user) {
+        localStorage.setItem(this.storageKey, JSON.stringify(user));
+      } else {
+        localStorage.removeItem(this.storageKey);
+      }
+    }
+  }
+
+  /**
+   * Load user from localStorage
+   */
+  private loadUserFromStorage(): void {
+    try {
+      const stored = localStorage.getItem(this.storageKey);
+      if (stored) {
+        this.user = JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load user from storage:', error);
+      localStorage.removeItem(this.storageKey);
+    }
   }
 
   /**
@@ -192,6 +194,11 @@ export class AuthClient {
   async init(): Promise<User | null> {
     if (this.initialized) return this.user;
 
+    // If we have a cached user, notify subscribers immediately
+    if (this.user && this.persistUser) {
+      this.notify();
+    }
+
     try {
       const response = await this.fetch(`${this.authPrefix}/me`);
 
@@ -203,7 +210,10 @@ export class AuthClient {
       }
     } catch (error) {
       console.error('Auth init error:', error);
-      this.setUser(null);
+      // If we have cached user but API fails, keep the cached user
+      if (!this.user) {
+        this.setUser(null);
+      }
     }
 
     this.initialized = true;
